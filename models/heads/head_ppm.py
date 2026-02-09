@@ -62,3 +62,46 @@ class ContextSegHead(nn.Module):
         logits = self.decoder(x)
         
         return logits
+
+class PPMHead_ResNet(nn.Module):
+    def __init__(self, in_channels, num_classes, embedding_dim=512):
+        """
+        Args:
+            in_channels: Backbone 最后一层的通道数 (ResNet50 是 2048)
+            num_classes: 类别数
+            embedding_dim: 中间层维度
+        """
+        super().__init__()
+        
+        # PPM 模块：包含 1x1, 2x2, 3x3, 6x6 四个尺度
+        # 降维后的通道数通常是输入通道的 1/4 或固定值
+        reduction_dim = int(in_channels / 4) if in_channels >= 512 else 128
+        self.ppm = PPM(in_channels, reduction_dim, bins=[1, 2, 3, 6])
+        
+        # PPM 输出总通道数 = 输入 + 4 * reduction_dim
+        ppm_out_channels = in_channels + 4 * reduction_dim
+        
+        # 解码层
+        self.bottleneck = nn.Sequential(
+            nn.Conv2d(ppm_out_channels, embedding_dim, kernel_size=3, padding=1, bias=False),
+            nn.BatchNorm2d(embedding_dim),
+            nn.ReLU(inplace=True),
+            nn.Dropout(0.1),
+            nn.Conv2d(embedding_dim, num_classes, kernel_size=1)
+        )
+
+    def forward(self, features):
+        """
+        Args:
+            features: Backbone 返回的列表 [c1, c2, c3, c4]
+        """
+        # PPM 只需要利用语义信息最强的最后一层 (c4)
+        x = features[-1]
+        
+        # 1. 金字塔池化融合
+        x = self.ppm(x)
+        
+        # 2. 最终分类
+        logits = self.bottleneck(x)
+        
+        return logits

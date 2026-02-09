@@ -5,14 +5,15 @@ import torch.optim as optim
 
 # 导入我们自己写的模块
 from models.backbones.dinov3 import Dinov3TransformerBackbone
+from models.backbones.resnet import ResNetBackbone
 from models.heads.my_head import SimpleSegHead
-from models.heads.head_ppm import ContextSegHead
+from models.heads.head_ppm import ContextSegHead, PPMHead_ResNet
 from dataset import NuScenesSegDataset
 
 # ================= 配置 =================
 DATA_ROOT = "/home/wayrobo/0_code/segment-anything-2/nuScene_golf_dataset" # 【修改这里】你的数据集路径
 WEIGHT_PATH = "/home/wayrobo/0_code/dinov3/pretrained/dinov3_vits16_pretrain_lvd1689m-08c60483.pth"   # 【修改这里】你的 DINOv3 权重路径
-CHECKPOINT_NAME = "VITS16_PPM"
+CHECKPOINT_NAME = "RESNET_PPM"
 BATCH_SIZE = 4
 LR = 1e-4
 EPOCHS = 10
@@ -30,6 +31,7 @@ val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False) # 验证集 Ba
 
 # ================= 2. 准备模型 =================
 print("正在构建模型...")
+"""
 # Backbone
 backbone = Dinov3TransformerBackbone(
     weight_path=WEIGHT_PATH,
@@ -46,6 +48,18 @@ head = ContextSegHead(
     in_channels=backbone.embed_dim,
     num_classes=NUM_CLASSES
 )
+"""
+
+# Backbone
+backbone = ResNetBackbone(
+    model_type='resnet18' # 确保和你下载的权重匹配
+)
+# Head
+head = PPMHead_ResNet(
+    in_channels=backbone.embed_dim,
+    num_classes=NUM_CLASSES,
+    embedding_dim=512
+)
 
 # 组合模型
 class SegModel(nn.Module):
@@ -55,11 +69,12 @@ class SegModel(nn.Module):
         self.head = head
     
     def forward(self, x):
+        input_shape = x.shape[2:]
         feats = self.backbone(x)
         logits = self.head(feats)
         # 上采样回原图大小 (因为 Head 输出是 1/14)
         return torch.nn.functional.interpolate(
-            logits, size=x.shape[2:], mode='bilinear', align_corners=False
+            logits, size=input_shape , mode='bilinear', align_corners=False
         )
 
 model = SegModel(backbone, head).to(DEVICE)

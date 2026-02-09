@@ -6,6 +6,7 @@ import torch.optim as optim
 # 导入我们自己写的模块
 from models.backbones.dinov3 import Dinov3TransformerBackbone
 from models.backbones.resnet import ResNetBackbone
+from models.backbones.yolo import YOLOv8Backbone
 from models.heads.my_head import SimpleSegHead
 from models.heads.head_ppm import ContextSegHead, PPMHead_ResNet
 from dataset import NuScenesSegDataset
@@ -16,7 +17,7 @@ WEIGHT_PATH = "/home/wayrobo/0_code/dinov3/pretrained/dinov3_vits16_pretrain_lvd
 CHECKPOINT_NAME = "RESNET_PPM"
 BATCH_SIZE = 4
 LR = 1e-4
-EPOCHS = 10
+EPOCHS = 20
 NUM_CLASSES = 9  # 你的类别数
 IMG_SIZE = 512
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
@@ -51,14 +52,26 @@ head = ContextSegHead(
 """
 
 # Backbone
-backbone = ResNetBackbone(
-    model_type='resnet18' # 确保和你下载的权重匹配
+#backbone = ResNetBackbone(
+#    model_type='resnet18' # 确保和你下载的权重匹配
+#)
+# Head
+#head = PPMHead_ResNet(
+#    in_channels=backbone.embed_dim,
+#    num_classes=NUM_CLASSES,
+#    embedding_dim=512
+#)
+
+# Backbone
+backbone = YOLOv8Backbone(
+    model_type='yolov8s.pt', # 确保和你下载的权重匹配
+    pretrained=True
 )
 # Head
 head = PPMHead_ResNet(
     in_channels=backbone.embed_dim,
     num_classes=NUM_CLASSES,
-    embedding_dim=512
+    embedding_dim=256
 )
 
 # 组合模型

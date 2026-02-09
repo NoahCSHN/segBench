@@ -12,17 +12,18 @@ from tqdm import tqdm
 # 确保 models 文件夹在当前目录下
 from models.backbones.dinov3 import Dinov3TransformerBackbone
 from models.heads.my_head import SimpleSegHead
+from models.heads.head_ppm import ContextSegHead
 
 # ================= 配置区域 =================
 # 1. 路径配置
 # 验证集图片的文件夹 (只放图片，不需要放标注)
 VAL_IMAGE_DIR = "/home/wayrobo/0_code/segment-anything-2/sav_dataset/0_poly_DrivingRange/workflow" 
 # 训练好的权重文件
-CHECKPOINT_PATH = "checkpoints/seg_model_epoch_8.pth" # 替换为你实际的权重路径
+CHECKPOINT_PATH = "checkpoints/VITS16_PPM_epoch_10.pth" # 替换为你实际的权重路径
 # DINOv3 预训练权重路径 (Backbone 初始化还需要用到它)
 DINO_WEIGHT_PATH = "/home/wayrobo/0_code/dinov3/pretrained/dinov3_vits16_pretrain_lvd1689m-08c60483.pth" 
 # fiftyone dataset name
-FIFTYONE_DATASET_NAME = "DINOV3_VITS16_GOLF_WORKFLOW"
+FIFTYONE_DATASET_NAME = "DINOV3_VITS16_PPM_GOLF_WORKFLOW"
 
 # 2. 模型参数 (必须与训练时一致)
 IMG_SIZE = 512
@@ -52,7 +53,7 @@ def get_model():
         model_type='vit', # 确保与训练时一致
         img_size=IMG_SIZE
     )
-    head = SimpleSegHead(
+    head = ContextSegHead(
         in_channels=backbone.embed_dim, 
         num_classes=NUM_CLASSES
     )

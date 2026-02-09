@@ -6,11 +6,13 @@ import torch.optim as optim
 # 导入我们自己写的模块
 from models.backbones.dinov3 import Dinov3TransformerBackbone
 from models.heads.my_head import SimpleSegHead
+from models.heads.head_ppm import ContextSegHead
 from dataset import NuScenesSegDataset
 
 # ================= 配置 =================
 DATA_ROOT = "/home/wayrobo/0_code/segment-anything-2/nuScene_golf_dataset" # 【修改这里】你的数据集路径
 WEIGHT_PATH = "/home/wayrobo/0_code/dinov3/pretrained/dinov3_vits16_pretrain_lvd1689m-08c60483.pth"   # 【修改这里】你的 DINOv3 权重路径
+CHECKPOINT_NAME = "VITS16_PPM"
 BATCH_SIZE = 4
 LR = 1e-4
 EPOCHS = 10
@@ -35,8 +37,13 @@ backbone = Dinov3TransformerBackbone(
     img_size=IMG_SIZE
 )
 # Head
-head = SimpleSegHead(
-    in_channels=backbone.embed_dim, 
+#head = SimpleSegHead(
+#    in_channels=backbone.embed_dim, 
+#    num_classes=NUM_CLASSES
+#)
+
+head = ContextSegHead(
+    in_channels=backbone.embed_dim,
     num_classes=NUM_CLASSES
 )
 
@@ -94,6 +101,6 @@ for epoch in range(EPOCHS):
     # 这里可以加代码跑 val_loader 计算 IoU
     
     # 保存模型
-    torch.save(model.state_dict(), f"checkpoints/seg_model_epoch_{epoch+1}.pth")
+    torch.save(model.state_dict(), f"checkpoints/{CHECKPOINT_NAME}_epoch_{epoch+1}.pth")
 
 print("训练结束！")

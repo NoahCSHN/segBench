@@ -14,7 +14,9 @@ from models.backbones.dinov3 import Dinov3TransformerBackbone
 from models.backbones.resnet import ResNetBackbone
 from models.backbones.yolo import YOLOv8Backbone
 from models.backbones.universal import UniversalBackbone
+from models.backbones.mobilenet import MobileNetBackbone 
 from models.heads.my_head import SimpleSegHead
+from models.heads.head_segformer import SegFormerHead 
 from models.heads.head_ppm import ContextSegHead, PPMHead_ResNet
 
 # ================= 配置区域 =================
@@ -23,11 +25,12 @@ from models.heads.head_ppm import ContextSegHead, PPMHead_ResNet
 VAL_IMAGE_DIR = "/home/wayrobo/0_code/segment-anything-2/sav_dataset/0_poly_DrivingRange/workflow" 
 # 训练好的权重文件
 #CHECKPOINT_PATH = "checkpoints/RESNET_PPM_epoch_20.pth" # RESNET trained weights
-CHECKPOINT_PATH = "checkpoints/CONVNEXT_TINY_PPM_epoch_20.pth" # convnext trained weights
+#CHECKPOINT_PATH = "checkpoints/CONVNEXT_TINY_PPM_epoch_20.pth" # convnext trained weights
+CHECKPOINT_PATH = "checkpoints/MOBILENET_LARGE_PPM_epoch_20.pth" # mobilenetV3 large trained weights
 # DINOv3 预训练权重路径 (Backbone 初始化还需要用到它)
 DINO_WEIGHT_PATH = "/home/wayrobo/0_code/dinov3/pretrained/dinov3_vits16_pretrain_lvd1689m-08c60483.pth" 
 # fiftyone dataset name
-FIFTYONE_DATASET_NAME = "CONVNEXT_TINY_PPM_GOLF_WORKFLOW"
+FIFTYONE_DATASET_NAME = "MOBILENTE_LARGE_PPM_GOLF_WORKFLOW"
 
 # 2. 模型参数 (必须与训练时一致)
 IMG_SIZE = 512
@@ -52,32 +55,42 @@ ID_TO_LABEL = {
 def get_model():
     """重建模型结构并加载训练权重"""
     print("正在构建模型...")
-    #backbone = Dinov3TransformerBackbone(
-    #    weight_path=DINO_WEIGHT_PATH,
-    #    model_type='vit', # 确保与训练时一致
-    #    img_size=IMG_SIZE
-    #)
-    #head = ContextSegHead(
-    #    in_channels=backbone.embed_dim, 
-    #    num_classes=NUM_CLASSES
-    #)
-    #backbone = ResNetBackbone(
-    #    model_type='resnet18' # 确保与训练时一致
-    #)
-    #head = PPMHead_ResNet(
-    #    in_channels=backbone.embed_dim, 
-    #    num_classes=NUM_CLASSES
-    #)
+    """
+    backbone = Dinov3TransformerBackbone(
+        weight_path=DINO_WEIGHT_PATH,
+        model_type='vit', # 确保与训练时一致
+        img_size=IMG_SIZE
+    )
+    head = ContextSegHead(
+        in_channels=backbone.embed_dim, 
+        num_classes=NUM_CLASSES
+    )
+    backbone = ResNetBackbone(
+        model_type='resnet18' # 确保与训练时一致
+    )
+    head = PPMHead_ResNet(
+        in_channels=backbone.embed_dim, 
+        num_classes=NUM_CLASSES
+    )
     # Backbone
-    #backbone = YOLOv8Backbone(
-    #    model_type='yolov8s.pt', # 确保和你下载的权重匹配
-    #    pretrained=True
-    #)
+    backbone = YOLOv8Backbone(
+        model_type='yolov8s.pt', # 确保和你下载的权重匹配
+        pretrained=True
+    )
     backbone = UniversalBackbone('convnext_tiny')
     # Head
     head = PPMHead_ResNet(
         in_channels=backbone.embed_dim,
         num_classes=NUM_CLASSES
+    )
+    """
+    backbone = MobileNetBackbone('mobilenetv3_large_100', pretrained=True)
+    # 2. 实例化 Head
+    # 注意：一定要把通道列表传给 Head，因为它需要对每一层做映射
+    head = SegFormerHead(
+        in_channels_list=backbone.channels_list, # [64, 128, 320, 512]
+        num_classes=NUM_CLASSES,
+        embedding_dim=256 # SegFormer 默认是 256 (B0/B1) 或 768 (B2-B5)
     )
     
     # 定义简单的包装类 (与 trains.py 里的 SegModel 一致)

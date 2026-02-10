@@ -1,4 +1,6 @@
 import torch
+from tqdm import tqdm
+import numpy as np
 import torch.nn as nn
 from torch.utils.data import DataLoader
 import torch.optim as optim
@@ -14,6 +16,7 @@ from models.heads.my_head import SimpleSegHead
 from models.heads.head_ppm import ContextSegHead, PPMHead_ResNet
 from models.heads.head_segformer import SegFormerHead 
 from dataset import NuScenesSegDataset
+from evaluator import Evaluator
 
 # ================= 配置 =================
 DATA_ROOT = "/home/wayrobo/0_code/segment-anything-2/nuScene_golf_dataset_v1p1" # 【修改这里】你的数据集路径
@@ -26,6 +29,18 @@ EPOCHS = 20
 NUM_CLASSES = 10  # 你的类别数
 IMG_SIZE = 512
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+CLASS_NAMES = [ 
+    "static.field",
+    "static.puddle",
+    "static.structure",
+    "static.vegatation",
+    "dynamic.vehicle",
+    "static.wayrobo",
+    "dynamic.human",
+    "dynamic.basket",
+    "static.marker",
+    "static.station"
+]
 
 # ================= 1. 准备数据 =================
 print("正在准备数据...")
@@ -141,10 +156,16 @@ criterion = nn.CrossEntropyLoss(ignore_index=255) # 忽略背景或无效值
 
 # ================= 4. 训练循环 =================
 print(f"开始训练，设备: {DEVICE}")
+evaluator = Evaluator(NUM_CLASSES)
+best_miou = 0.0
 
 for epoch in range(EPOCHS):
     model.train()
     epoch_loss = 0
+    train_steps = len(train_loader)
+    
+    # 使用 tqdm 显示进度条
+    pbar = tqdm(total=train_steps, desc=f"Epoch {epoch+1}/{EPOCHS} [Train]", unit="batch")
     
     for i, (images, masks) in enumerate(train_loader):
         images = images.to(DEVICE)
@@ -163,15 +184,61 @@ for epoch in range(EPOCHS):
         
         epoch_loss += loss.item()
         
-        if i % 10 == 0:
-            print(f"Epoch [{epoch+1}/{EPOCHS}], Step [{i}/{len(train_loader)}], Loss: {loss.item():.4f}")
+        pbar.set_postfix({"loss": f"{loss.item():.4f}"})
+        pbar.update(1)
+        
+    pbar.close()
+    avg_train_loss = epoch_loss / train_steps
+    print(f"Epoch {epoch+1} Train Loss: {avg_train_loss:.4f}")
+    
+    # --- Validation ---
+    model.eval()
+    evaluator.reset()
+    val_loss = 0
 
     print(f"Epoch {epoch+1} 完成，平均 Loss: {epoch_loss / len(train_loader):.4f}")
     
-    # === 简单的验证 (可选) ===
     # 这里可以加代码跑 val_loader 计算 IoU
+    print(f"正在验证 Epoch {epoch+1} ...")
+    with torch.no_grad():
+        for images, masks in tqdm(val_loader, desc="[Val]"):
+            images = images.to(DEVICE)
+            masks = masks.to(DEVICE)
+            
+            outputs = model(images)
+            loss = criterion(outputs, masks)
+            val_loss += loss.item()
+            
+            # 获取预测结果 (argmax)
+            preds = torch.argmax(outputs, dim=1)
+            
+            # 转为 numpy 并累积混淆矩阵
+            # 注意: 这里的 masks 可能包含 255，Evaluator 内部会处理
+            evaluator.add_batch(masks.cpu().numpy(), preds.cpu().numpy())
+            
+    avg_val_loss = val_loss / len(val_loader)
+    ious = evaluator.evaluate()
+    miou = np.nanmean(ious)
     
-    # 保存模型
-    torch.save(model.state_dict(), f"checkpoints/{CHECKPOINT_NAME}_epoch_{epoch+1}.pth")
+    # --- 打印报表 ---
+    print("-" * 50)
+    print(f"Epoch {epoch+1} Validation Report:")
+    print(f"Val Loss: {avg_val_loss:.4f}")
+    print(f"mIoU:     {miou:.2%}")
+    print("-" * 50)
+    print(f"{'Class Name':<15} | {'IoU':<10}")
+    print("-" * 30)
+    for i, iou in enumerate(ious):
+        print(f"{CLASS_NAMES[i]:<15} | {iou:.2%}")
+    print("-" * 50)
+    
+    # 保存最佳模型
+    if miou > best_miou:
+        best_miou = miou
+        torch.save(model.state_dict(), f"checkpoints/{CHECKPOINT_NAME}_best.pth")
+        print(f"★ 新的最佳模型已保存 (mIoU: {best_miou:.2%})")
+    
+    # 保存最新模型
+    torch.save(model.state_dict(), f"checkpoints/{CHECKPOINT_NAME}_last.pth")
 
 print("训练结束！")

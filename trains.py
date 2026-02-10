@@ -16,14 +16,14 @@ from models.heads.head_segformer import SegFormerHead
 from dataset import NuScenesSegDataset
 
 # ================= 配置 =================
-DATA_ROOT = "/home/wayrobo/0_code/segment-anything-2/nuScene_golf_dataset" # 【修改这里】你的数据集路径
+DATA_ROOT = "/home/wayrobo/0_code/segment-anything-2/nuScene_golf_dataset_v1p1" # 【修改这里】你的数据集路径
 WEIGHT_PATH = "/home/wayrobo/0_code/dinov3/pretrained/dinov3_vits16_pretrain_lvd1689m-08c60483.pth"   # 【修改这里】你的 DINOv3 权重路径
 #CHECKPOINT_NAME = "MOBILENET_LARGE_PPM"
-CHECKPOINT_NAME = "VITS16_PPM"
+CHECKPOINT_NAME = "VITS16_PPM_datasetv1p1"
 BATCH_SIZE = 4
 LR = 1e-4
 EPOCHS = 20
-NUM_CLASSES = 9  # 你的类别数
+NUM_CLASSES = 10  # 你的类别数
 IMG_SIZE = 512
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -32,7 +32,7 @@ print("正在准备数据...")
 train_dataset = NuScenesSegDataset(DATA_ROOT, split='train', img_size=IMG_SIZE)
 val_dataset = NuScenesSegDataset(DATA_ROOT, split='val', img_size=IMG_SIZE)
 
-train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=4)
+train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=4, drop_last=True)
 val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False) # 验证集 Batch=1 方便计算 IoU
 
 # ================= 2. 准备模型 =================

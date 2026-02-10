@@ -28,15 +28,15 @@ VAL_IMAGE_DIR = "/home/wayrobo/0_code/segment-anything-2/sav_dataset/0_poly_Driv
 #CHECKPOINT_PATH = "checkpoints/CONVNEXT_TINY_PPM_epoch_20.pth" # convnext trained weights
 #CHECKPOINT_PATH = "checkpoints/MOBILENET_LARGE_PPM_epoch_20.pth" # mobilenetV3 large trained weights
 #FIFTYONE_DATASET_NAME = "MOBILENTE_LARGE_PPM_GOLF_WORKFLOW"
-CHECKPOINT_PATH = "checkpoints/VITS16_PPM_epoch_20.pth" # vits trained weights
-FIFTYONE_DATASET_NAME = "VITS16_PPM_GOLF_WORKFLOW"
+CHECKPOINT_PATH = "checkpoints/VITS16_PPM_datasetv1p1_epoch_20.pth" # vits trained weights
+FIFTYONE_DATASET_NAME = "VITS16_PPM_datasetv1p1_GOLF_WORKFLOW"
 # DINOv3 预训练权重路径 (Backbone 初始化还需要用到它)
 DINO_WEIGHT_PATH = "/home/wayrobo/0_code/dinov3/pretrained/dinov3_vits16_pretrain_lvd1689m-08c60483.pth" 
 # fiftyone dataset name
 
 # 2. 模型参数 (必须与训练时一致)
 IMG_SIZE = 512
-NUM_CLASSES = 9
+NUM_CLASSES = 10 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 # 3. 类别映射 (用于 FiftyOne 显示图例)
@@ -49,8 +49,9 @@ ID_TO_LABEL = {
     4: "dynamic.vehicle",
     5: "static.wayrobo",
     6: "dynamic.human",
-    7: "dynamic.backet",
-    8: "static.marker"
+    7: "dynamic.basket",
+    8: "static.marker",
+    9: "static.station"
 }
 # ===========================================
 

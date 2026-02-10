@@ -1,5 +1,7 @@
 import os
-import torch
+import albumentations as A
+from albumentations.pytorch import ToTensorV2
+import torch, cv2
 from torch.utils.data import Dataset
 from PIL import Image
 import numpy as np
@@ -18,6 +20,7 @@ class NuScenesSegDataset(Dataset):
         self.data_root = data_root
         self.img_size = img_size
         self.ignore_index = ignore_index
+        self.split = split
         
         # 1. 定义路径
         self.img_dir = os.path.join(data_root, 'samples', 'CAM_FRONT')
@@ -70,30 +73,60 @@ class NuScenesSegDataset(Dataset):
             T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
 
+        # ================= 定义增强策略 =================
+        if split == 'train':
+            self.transform = A.Compose([
+                # 修改点：
+                # 1. 显式指定 size 参数
+                # 2. scale 参数改为 (0.08, 1.0) 这是 ImageNet 标准，表示裁剪面积占原图的 8% 到 100%
+                #    如果你希望物体看起来更大（拉近），可以使用 (0.5, 1.0)
+                A.RandomResizedCrop(size=(img_size, img_size), scale=(0.5, 1.0), ratio=(0.75, 1.33), p=1.0),
+                A.HorizontalFlip(p=0.5),
+                A.ShiftScaleRotate(shift_limit=0.0625, scale_limit=0.1, rotate_limit=15, p=0.3),
+                
+                # 2. 光照与天气 (解决水坑/倒影问题)
+                A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2, p=0.5),
+                A.HueSaturationValue(hue_shift_limit=20, sat_shift_limit=30, val_shift_limit=20, p=0.5),
+                A.RGBShift(p=0.5),
+                
+                # 3. 模糊与噪声 (模拟真实摄像头)
+                A.OneOf([
+                    A.GaussianBlur(blur_limit=3, p=0.5),
+                    A.MotionBlur(blur_limit=3, p=0.5),
+                ], p=0.3),
+                
+                # 4. 遮挡 (强迫学习上下文)
+                A.CoarseDropout(max_holes=8, max_height=32, max_width=32, fill_value=0, mask_fill_value=255, p=0.3),
+                
+                # 5. 归一化与转 Tensor
+                A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+                ToTensorV2(),
+            ])
+        else:
+            # 验证集只需要 Resize 和 归一化
+            self.transform = A.Compose([
+                A.Resize(height=img_size, width=img_size),
+                A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+                ToTensorV2(),
+            ])
+
     def __len__(self):
         return len(self.items)
 
     def __getitem__(self, idx):
         item = self.items[idx]
         
-        # 1. 读取图片和掩码
-        image = Image.open(item['img_path']).convert('RGB')
-        mask = Image.open(item['mask_path']) # 这里的 mask 应该是单通道索引图 (0, 1, 2...)
-
-        # 2. 调整大小 (Resize)
-        # 注意：Mask 必须使用 Nearest 插值，不能破坏类别索引值
-        image = F.resize(image, (self.img_size, self.img_size), interpolation=Image.BILINEAR)
-        mask = F.resize(mask, (self.img_size, self.img_size), interpolation=Image.NEAREST)
-
-        # 3. 数据增强 (仅对训练集)
-        # 这里演示最简单的随机翻转
-        if random.random() > 0.5:
-            image = F.hflip(image)
-            mask = F.hflip(mask)
-
-        # 4. 转 Tensor
-        img_tensor = self.normalize(image)
-        mask_array = np.array(mask, dtype=np.int64) # 转成 numpy
-        mask_tensor = torch.from_numpy(mask_array).long() # 转成 LongTensor
+        # 1. 读取图片 (OpenCV 读取更快，Albumentations 默认用 numpy)
+        image = cv2.imread(item['img_path'])
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB) # 转 RGB
+        
+        # 2. 读取 Mask
+        mask = cv2.imread(item['mask_path'], cv2.IMREAD_GRAYSCALE) # 单通道
+        
+        # 3. 应用增强 (核心！)
+        # albumentations 会自动处理 image 和 mask 的对应关系
+        augmented = self.transform(image=image, mask=mask)
+        img_tensor = augmented['image']
+        mask_tensor = augmented['mask'].long() # 转 LongTensor
 
         return img_tensor, mask_tensor

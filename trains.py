@@ -18,7 +18,8 @@ from dataset import NuScenesSegDataset
 # ================= 配置 =================
 DATA_ROOT = "/home/wayrobo/0_code/segment-anything-2/nuScene_golf_dataset" # 【修改这里】你的数据集路径
 WEIGHT_PATH = "/home/wayrobo/0_code/dinov3/pretrained/dinov3_vits16_pretrain_lvd1689m-08c60483.pth"   # 【修改这里】你的 DINOv3 权重路径
-CHECKPOINT_NAME = "MOBILENET_LARGE_PPM"
+#CHECKPOINT_NAME = "MOBILENET_LARGE_PPM"
+CHECKPOINT_NAME = "VITS16_PPM"
 BATCH_SIZE = 4
 LR = 1e-4
 EPOCHS = 20
@@ -36,7 +37,6 @@ val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False) # 验证集 Ba
 
 # ================= 2. 准备模型 =================
 print("正在构建模型...")
-"""
 # Backbone
 backbone = Dinov3TransformerBackbone(
     weight_path=WEIGHT_PATH,
@@ -54,6 +54,7 @@ head = ContextSegHead(
     num_classes=NUM_CLASSES
 )
 
+"""
 # Backbone
 backbone = ResNetBackbone(
     model_type='resnet18' # 确保和你下载的权重匹配
@@ -105,7 +106,6 @@ head = SegFormerHead(
     num_classes=NUM_CLASSES,
     embedding_dim=256 # SegFormer 默认是 256 (B0/B1) 或 768 (B2-B5)
 )
-"""
 backbone = MobileNetBackbone('mobilenetv3_large_100', pretrained=True)
 # 2. 实例化 Head
 # 注意：一定要把通道列表传给 Head，因为它需要对每一层做映射
@@ -114,6 +114,8 @@ head = SegFormerHead(
     num_classes=NUM_CLASSES,
     embedding_dim=256 # SegFormer 默认是 256 (B0/B1) 或 768 (B2-B5)
 )
+
+"""
 
 # 组合模型
 class SegModel(nn.Module):

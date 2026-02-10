@@ -7,14 +7,17 @@ import torch.optim as optim
 from models.backbones.dinov3 import Dinov3TransformerBackbone
 from models.backbones.resnet import ResNetBackbone
 from models.backbones.yolo import YOLOv8Backbone
+from models.backbones.universal import UniversalBackbone
+from models.backbones.mit import mit_b0, mit_b1 
 from models.heads.my_head import SimpleSegHead
 from models.heads.head_ppm import ContextSegHead, PPMHead_ResNet
+from models.heads.head_segformer import SegFormerHead 
 from dataset import NuScenesSegDataset
 
 # ================= 配置 =================
 DATA_ROOT = "/home/wayrobo/0_code/segment-anything-2/nuScene_golf_dataset" # 【修改这里】你的数据集路径
 WEIGHT_PATH = "/home/wayrobo/0_code/dinov3/pretrained/dinov3_vits16_pretrain_lvd1689m-08c60483.pth"   # 【修改这里】你的 DINOv3 权重路径
-CHECKPOINT_NAME = "RESNET_PPM"
+CHECKPOINT_NAME = "MIT_B1_PPM"
 BATCH_SIZE = 4
 LR = 1e-4
 EPOCHS = 20
@@ -49,18 +52,17 @@ head = ContextSegHead(
     in_channels=backbone.embed_dim,
     num_classes=NUM_CLASSES
 )
-"""
 
 # Backbone
-#backbone = ResNetBackbone(
-#    model_type='resnet18' # 确保和你下载的权重匹配
-#)
+backbone = ResNetBackbone(
+    model_type='resnet18' # 确保和你下载的权重匹配
+)
 # Head
-#head = PPMHead_ResNet(
-#    in_channels=backbone.embed_dim,
-#    num_classes=NUM_CLASSES,
-#    embedding_dim=512
-#)
+head = PPMHead_ResNet(
+    in_channels=backbone.embed_dim,
+    num_classes=NUM_CLASSES,
+    embedding_dim=512
+)
 
 # Backbone
 backbone = YOLOv8Backbone(
@@ -72,6 +74,37 @@ head = PPMHead_ResNet(
     in_channels=backbone.embed_dim,
     num_classes=NUM_CLASSES,
     embedding_dim=256
+)
+# === 选项 A: ConvNeXt-Tiny (推荐作为主力) ===
+# 精度比 ResNet50 高，速度差不多
+backbone = UniversalBackbone('convnext_tiny')
+
+# === 选项 B: SegFormer-B1 (推荐用于 Jetson) ===
+# 速度极快，专门为分割设计
+# backbone = UniversalBackbone('mit_b1')
+
+# === 选项 C: Swin-Tiny (高精度) ===
+# 如果显存够，可以试试这个
+ backbone = UniversalBackbone('swin_tiny_patch4_window7_224')
+
+# Head 依然使用 PPMHead 或 UPerHead (推荐 UPerHead 因为这些模型都输出4层特征)
+# 如果用 PPMHead，它会自动取最后一层
+head = PPMHead_ResNet(
+    in_channels=backbone.embed_dim, 
+    num_classes=NUM_CLASSES
+)
+
+"""
+# 1. 实例化 Backbone (使用 MiT-B1，官方权重会自动下载)
+# mit_b1 的通道定义是: [64, 128, 320, 512]
+backbone = mit_b1(pretrained=True)
+
+# 2. 实例化 Head
+# 注意：一定要把通道列表传给 Head，因为它需要对每一层做映射
+head = SegFormerHead(
+    in_channels_list=backbone.embed_dims, # [64, 128, 320, 512]
+    num_classes=NUM_CLASSES,
+    embedding_dim=256 # SegFormer 默认是 256 (B0/B1) 或 768 (B2-B5)
 )
 
 # 组合模型

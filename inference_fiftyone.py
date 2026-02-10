@@ -13,6 +13,7 @@ from tqdm import tqdm
 from models.backbones.dinov3 import Dinov3TransformerBackbone
 from models.backbones.resnet import ResNetBackbone
 from models.backbones.yolo import YOLOv8Backbone
+from models.backbones.universal import UniversalBackbone
 from models.heads.my_head import SimpleSegHead
 from models.heads.head_ppm import ContextSegHead, PPMHead_ResNet
 
@@ -21,11 +22,12 @@ from models.heads.head_ppm import ContextSegHead, PPMHead_ResNet
 # 验证集图片的文件夹 (只放图片，不需要放标注)
 VAL_IMAGE_DIR = "/home/wayrobo/0_code/segment-anything-2/sav_dataset/0_poly_DrivingRange/workflow" 
 # 训练好的权重文件
-CHECKPOINT_PATH = "checkpoints/RESNET_PPM_epoch_20.pth" # 替换为你实际的权重路径
+#CHECKPOINT_PATH = "checkpoints/RESNET_PPM_epoch_20.pth" # RESNET trained weights
+CHECKPOINT_PATH = "checkpoints/CONVNEXT_TINY_PPM_epoch_20.pth" # convnext trained weights
 # DINOv3 预训练权重路径 (Backbone 初始化还需要用到它)
 DINO_WEIGHT_PATH = "/home/wayrobo/0_code/dinov3/pretrained/dinov3_vits16_pretrain_lvd1689m-08c60483.pth" 
 # fiftyone dataset name
-FIFTYONE_DATASET_NAME = "YOLOV8_PPM_GOLF_WORKFLOW"
+FIFTYONE_DATASET_NAME = "CONVNEXT_TINY_PPM_GOLF_WORKFLOW"
 
 # 2. 模型参数 (必须与训练时一致)
 IMG_SIZE = 512
@@ -67,15 +69,15 @@ def get_model():
     #    num_classes=NUM_CLASSES
     #)
     # Backbone
-    backbone = YOLOv8Backbone(
-        model_type='yolov8s.pt', # 确保和你下载的权重匹配
-        pretrained=True
-    )
+    #backbone = YOLOv8Backbone(
+    #    model_type='yolov8s.pt', # 确保和你下载的权重匹配
+    #    pretrained=True
+    #)
+    backbone = UniversalBackbone('convnext_tiny')
     # Head
     head = PPMHead_ResNet(
         in_channels=backbone.embed_dim,
-        num_classes=NUM_CLASSES,
-        embedding_dim=256
+        num_classes=NUM_CLASSES
     )
     
     # 定义简单的包装类 (与 trains.py 里的 SegModel 一致)

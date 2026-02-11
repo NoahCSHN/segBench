@@ -4,7 +4,7 @@ import numpy as np
 import torch.nn as nn
 from torch.utils.data import DataLoader
 import torch.optim as optim
-
+from loss import class_weights, get_parameter_groups
 # 导入我们自己写的模块
 from models.backbones.dinov3 import Dinov3TransformerBackbone
 from models.backbones.resnet import ResNetBackbone
@@ -21,8 +21,11 @@ from evaluator import Evaluator
 # ================= 配置 =================
 DATA_ROOT = "/home/wayrobo/0_code/segment-anything-2/nuScene_golf_dataset_v1p1" # 【修改这里】你的数据集路径
 WEIGHT_PATH = "/home/wayrobo/0_code/dinov3/pretrained/dinov3_vits16_pretrain_lvd1689m-08c60483.pth"   # 【修改这里】你的 DINOv3 权重路径
-#CHECKPOINT_NAME = "MOBILENET_LARGE_PPM"
+#CHECKPOINT_NAME = "MOBILENET_LARGE_PPM_datasetv1p1"
 CHECKPOINT_NAME = "VITS16_PPM_datasetv1p1"
+#CHECKPOINT_NAME = "CONVNEXT_TINY_PPM_datasetv1p1"
+#CHECKPOINT_NAME = "YOLOV8_PPM_datasetv1p1"
+#CHECKPOINT_NAME = "RESNET18_PPM_datasetv1p1"
 BATCH_SIZE = 4
 LR = 1e-4
 EPOCHS = 20
@@ -102,7 +105,7 @@ backbone = UniversalBackbone('convnext_tiny')
 
 # === 选项 C: Swin-Tiny (高精度) ===
 # 如果显存够，可以试试这个
- backbone = UniversalBackbone('swin_tiny_patch4_window7_224')
+# backbone = UniversalBackbone('swin_tiny_patch4_window7_224')
 
 # Head 依然使用 PPMHead 或 UPerHead (推荐 UPerHead 因为这些模型都输出4层特征)
 # 如果用 PPMHead，它会自动取最后一层
@@ -129,8 +132,8 @@ head = SegFormerHead(
     num_classes=NUM_CLASSES,
     embedding_dim=256 # SegFormer 默认是 256 (B0/B1) 或 768 (B2-B5)
 )
-
 """
+
 
 # 组合模型
 class SegModel(nn.Module):
@@ -151,8 +154,21 @@ class SegModel(nn.Module):
 model = SegModel(backbone, head).to(DEVICE)
 
 # ================= 3. 定义优化器和损失 =================
-optimizer = optim.AdamW(model.parameters(), lr=LR, weight_decay=0.01)
-criterion = nn.CrossEntropyLoss(ignore_index=255) # 忽略背景或无效值
+#optimizer = optim.AdamW(model.parameters(), lr=LR, weight_decay=0.01)
+#criterion = nn.CrossEntropyLoss(ignore_index=255) # 忽略背景或无效值
+
+# ================= 修改优化器定义 =================
+# 使用分层学习率：Backbone 学习率会自动按 0.75 衰减，Head 保持 1e-4
+# 注意：我们把基础 LR 稍微调大一点到 2e-4，因为 Backbone 会被衰减得很小
+optimizer = optim.AdamW(
+    get_parameter_groups(model, lr=2e-4, weight_decay=0.05, layer_decay=0.8), 
+    betas=(0.9, 0.999)
+)
+# 将权重传给 Loss
+criterion = nn.CrossEntropyLoss(
+    weight=class_weights, 
+    ignore_index=255
+)
 
 # ================= 4. 训练循环 =================
 print(f"开始训练，设备: {DEVICE}")
